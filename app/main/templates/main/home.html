@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Главная</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">Статьи</a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item"><a class="nav-link" href="{% url 'home' %}">Популярные статьи</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'my_articles' %}">Статьи для вас</a></li>
+            </ul>
+            <span class="navbar-text">Привет, {{ user.username }}!</span>
+            <a class="btn btn-danger ml-3" href="{% url 'logout' %}">Выйти</a>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h2 class="mb-3">Статьи</h2>
+        {% for article in articles %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">{{ article.title }}</h5>
+                    <p class="card-text">{{ article.text|truncatewords:100 }}</p>
+                </div>
+                <div class="card-footer">
+                    <small class="text-muted">Добавлено: {{ article.timestamp }}</small>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'article_action' article.pk 'v' %}" class="btn btn-primary">Просмотрено</a>
+                    <a href="{% url 'article_action' article.pk 'l' %}" class="btn btn-success">Понравилось</a>
+                    <a href="{% url 'article_action' article.pk 'b' %}" class="btn btn-warning">В закладки</a>
+                    <a href="{% url 'article_action' article.pk 'f' %}" class="btn btn-danger">Отслеживать</a>
+                    <a href="{% url 'article_action' article.pk 'c' %}" class="btn btn-info">Создать комментарий</a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

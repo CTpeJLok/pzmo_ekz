@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ekz_pzmo_postgres
+    restart: always
+    volumes:
+      - ekz_pzmo_postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:26200:5432"
+    env_file:
+      - ./postgres.env
+
+  app:
+    build: ./app
+    container_name: ekz_pzmo_app
+    command: python manage.py runserver 0.0.0.0:8000
+    restart: always
+    volumes:
+      - ./app:/app
+      - ./content:/content
+    ports:
+      - "127.0.0.1:26201:8000"
+    env_file:
+      - ./postgres.env
+      - ./app/.env
+
+volumes:
+  ekz_pzmo_postgres:
