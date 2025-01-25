@@ -182,7 +182,12 @@ def my_articles(request):
     return render(
         request,
         "main/home.html",
-        {"user": request.user, "articles": articles, "is_rec": True},
+        {
+            "user": request.user,
+            "articles": articles,
+            "is_rec": True,
+            "maxR": round(recommended_articles.iloc[0]["similarity"], 3),
+        },
     )
 
 
