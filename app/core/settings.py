@@ -90,3 +90,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = PARENT_DIR / "content" / "static"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+CSRF_TRUSTED_ORIGINS = [
+  'https://ekz-pzmo.by-byte.ru',
+]
