@@ -1,14 +1,25 @@
 import pandas as pd
 from datetime import datetime
 from random import randint
-import pickle
+from scipy.sparse import csr_matrix
 
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
 
 from core.settings import BASE_DIR
 
 from .models import Article, UserInteract
+
+
+from sentence_transformers import SentenceTransformer
+
+from .ml import (
+    build_user_profile_on_the_fly,
+    recommend_items,
+    article_metadata,
+    article_embeddings,
+    bert_model_params,
+)
 
 
 EVENTS = {
@@ -33,6 +44,31 @@ EVENT_WEIGHT = {
 # with open(BASE_DIR / "cf_recommender_model2.pkl", "rb") as f:
 #     cf_recommender_model = pickle.load(f)
 
+model = SentenceTransformer(bert_model_params["model_name"])
+embedding_dim = bert_model_params["embedding_dim"]
+
+
+# Функция для получения рекомендаций
+def get_recommendations(
+    user_id,
+    user_interactions,
+    embedding_dim,
+    topn=10,
+):
+    print(
+        f"User {user_id} has >=5 interactions. Generating recommendations using BERT."
+    )
+    user_profile = build_user_profile_on_the_fly(
+        user_interactions[["contentId", "eventStrength"]].values,
+        article_metadata,
+        article_embeddings,
+        embedding_dim,
+    )
+    recommendations = recommend_items(
+        user_profile, article_embeddings, article_metadata, topn=topn
+    )
+    return recommendations
+
 
 def generate_session_id():
     id = randint(0, 9999999999999999999)
@@ -51,29 +87,103 @@ def home(request):
         {"articles": articles, "user": request.user},
     )
 
-    response.set_cookie(key="session_id", value=generate_session_id())
+    if not request.COOKIES.get("session_id"):
+        response.set_cookie(key="session_id", value=generate_session_id())
+
+    return response
+
+
+@login_required(login_url="login")
+def article(request, article_id):
+    article = Article.objects.get(contentId=article_id)
+    UserInteract.objects.create(
+        eventType="VIEW",
+        contentId=article,
+        personId=request.user,
+        sessionId=request.COOKIES["session_id"],
+    )
+
+    response = render(
+        request,
+        "main/home.html",
+        {
+            "article": article,
+            "user": request.user,
+        },
+    )
+
+    response.set_cookie(key="session_id", value=request.COOKIES["session_id"])
 
     return response
 
 
 @login_required(login_url="login")
 def article_action(request, article_id, action):
+    article = Article.objects.get(contentId=article_id)
+
+    if action in ["l", "b", "f"]:
+        interaction = UserInteract.objects.filter(
+            personId=request.user, contentId=article, eventType=EVENTS[action]
+        ).first()
+        if interaction:
+            interaction.delete()
+            return redirect("home")
+
     UserInteract.objects.create(
         eventType=EVENTS[action],
-        contentId=Article.objects.get(pk=article_id),
+        contentId=article,
         personId=request.user,
         sessionId=request.COOKIES["session_id"],
     )
 
-    articles = Article.objects.prefetch_related("interacts").order_by("-timestamp")[:50]
-
-    return render(
-        request, "main/home.html", {"articles": articles, "user": request.user}
-    )
+    return redirect("home")
 
 
 @login_required(login_url="login")
 def my_articles(request):
+    file_path_articles = "shared_articles.csv"
+    articles_df = pd.read_csv(file_path_articles)
+    articles_df = articles_df[articles_df["eventType"] == "CONTENT SHARED"]
+    articles_df.drop(
+        columns=["authorUserAgent", "authorRegion", "authorCountry"], inplace=True
+    )
+
+    interactions_df = UserInteract.objects.filter(personId=request.user)
+    interactions_df = list(interactions_df.values())
+    interactions_df = pd.DataFrame(interactions_df)
+    interactions_df.drop(columns=["id"], inplace=True)
+    interactions_df["timestamp"] = (
+        pd.to_datetime(interactions_df["timestamp"]).astype(int) // 10**9
+    )
+    interactions_df = interactions_df.rename(
+        columns={
+            "contentId_id": "contentId",
+            "personId_id": "personId",
+        }
+    )
+    print(interactions_df.head())
+
+    # Веса взаимодействий
+    event_type_strength = {
+        "VIEW": 1.0,
+        "LIKE": 2.0,
+        "BOOKMARK": 2.5,
+        "FOLLOW": 3.0,
+        "COMMENT CREATED": 4.0,
+    }
+    interactions_df["eventStrength"] = interactions_df["eventType"].apply(
+        lambda x: event_type_strength[x]
+    )
+    interactions_df = interactions_df.groupby(
+        ["personId", "contentId"], as_index=False
+    ).agg({"eventStrength": "sum"})
+
+    recommended_articles = get_recommendations(
+        request.user.id,
+        interactions_df,
+        topn=10,
+    )
+    print(recommended_articles)
 
     return render(request, "main/home.html", {"user": request.user})
 

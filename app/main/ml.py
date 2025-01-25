@@ -1,36 +1,54 @@
-# Определение класса CFRecommender
-class CFRecommender:
-    MODEL_NAME = "Collaborative Filtering"
+import pickle
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
-    def __init__(self, cf_predictions_df, items_df=None):
-        self.cf_predictions_df = cf_predictions_df
-        self.items_df = items_df
 
-    def get_model_name(self):
-        return self.MODEL_NAME
+article_embeddings = np.load("article_embeddings.npy")
 
-    def recommend_items(self, user_id, items_to_ignore=[], topn=10, verbose=False):
-        sorted_user_predictions = (
-            self.cf_predictions_df[user_id]
-            .sort_values(ascending=False)
-            .reset_index()
-            .rename(columns={user_id: "recStrength"})
-        )
+with open("article_metadata.pkl", "rb") as meta_file:
+    article_metadata = pickle.load(meta_file)
 
-        recommendations_df = (
-            sorted_user_predictions[
-                ~sorted_user_predictions["contentId"].isin(items_to_ignore)
-            ]
-            .sort_values("recStrength", ascending=False)
-            .head(topn)
-        )
+with open("bert_model_params.pkl", "rb") as params_file:
+    bert_model_params = pickle.load(params_file)
 
-        if verbose:
-            if self.items_df is None:
-                raise Exception('"items_df" is required in verbose mode')
 
-            recommendations_df = recommendations_df.merge(
-                self.items_df, how="left", left_on="contentId", right_on="contentId"
-            )[["recStrength", "contentId", "title", "url", "lang"]]
+def build_user_profile_on_the_fly(
+    user_interactions, article_metadata, article_embeddings, embedding_dim
+):
+    """
+    Создает профиль пользователя на основе взаимодействий.
+    """
+    # Проверяем, пуст ли массив взаимодействий
+    if user_interactions.size == 0:
+        return np.zeros(embedding_dim)
 
-        return recommendations_df["contentId"].tolist()
+    user_embeddings = []
+    strengths = []
+    for content_id, strength in user_interactions:
+        try:
+            idx = article_metadata[article_metadata["contentId"] == content_id].index[0]
+            user_embeddings.append(article_embeddings[idx])
+            strengths.append(strength)
+        except IndexError:
+            continue  # Пропускаем, если contentId не найден
+
+    user_embeddings = np.array(user_embeddings)
+    strengths = np.array(strengths).reshape(-1, 1)
+
+    weighted_sum = np.sum(user_embeddings * strengths, axis=0)
+    return weighted_sum / np.sum(strengths)
+
+
+def recommend_items(user_profile, article_embeddings, article_metadata, topn=10):
+    """
+    Рекомендует статьи на основе косинусного сходства.
+    """
+    cosine_similarities = cosine_similarity(
+        user_profile.reshape(1, -1), article_embeddings
+    ).flatten()
+    top_indices = cosine_similarities.argsort()[-topn:][::-1]
+    recommendations = article_metadata.iloc[
+        top_indices
+    ].copy()  # Добавляем .copy() для создания новой копии DataFrame
+    recommendations.loc[:, "similarity"] = cosine_similarities[top_indices]
+    return recommendations

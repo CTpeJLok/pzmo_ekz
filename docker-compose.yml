@@ -23,6 +23,13 @@ services:
     env_file:
       - ./postgres.env
       - ./app/.env
+    
+  adminer:
+    image: adminer
+    container_name: ekz_pzmo_adminer
+    restart: always
+    ports:
+      - "127.0.0.1:26202:8080"
 
 volumes:
   ekz_pzmo_postgres:

@@ -1,8 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.forms import AuthenticationForm
 
-from .forms import RegistrationForm
+from .forms import RegistrationForm, LoginForm
 
 
 # Представление для регистрации
@@ -22,13 +21,13 @@ def register_view(request):
 # Представление для авторизации
 def login_view(request):
     if request.method == "POST":
-        form = AuthenticationForm(request, data=request.POST)
+        form = LoginForm(request, data=request.POST)
         if form.is_valid():
             user = form.get_user()
             login(request, user)
             return redirect("home")
     else:
-        form = AuthenticationForm()
+        form = LoginForm()
     return render(request, "user_manager/login.html", {"form": form})
 
 
