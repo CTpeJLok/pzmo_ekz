@@ -38,18 +38,24 @@
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title">{{ article.title }}</h5>
+                {% comment %} {% if not is_rec %} {% endcomment %}
                 <p class="card-text">{{ article.text|truncatewords:100 }}</p>
+                {% comment %} {% endif %} {% endcomment %}
             </div>
+            {% if not is_rec %}
             <div class="card-footer">
                 <small class="text-muted">Добавлено: {{ article.timestamp }}</small>
             </div>
+            {% endif %}
             <div class="card-footer d-flex flex-wrap justify-content-center align-items-center gap-3">
                 <a href="{% url 'article' article.pk %}" class="btn btn-link">Открыть</a>
+                {% if not is_rec %}
                 <a href="{% url 'article_action' article.pk 'v' %}" class="btn btn-primary">Просмотрено</a>
                 <a href="{% url 'article_action' article.pk 'l' %}" class="btn btn-success">Понравилось</a>
                 <a href="{% url 'article_action' article.pk 'b' %}" class="btn btn-warning">В закладки</a>
                 <a href="{% url 'article_action' article.pk 'f' %}" class="btn btn-danger">Отслеживать</a>
                 <a href="{% url 'article_action' article.pk 'c' %}" class="btn btn-info">Создать комментарий</a>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

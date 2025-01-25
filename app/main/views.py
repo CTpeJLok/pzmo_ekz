@@ -41,8 +41,9 @@ def home(request):
     #     :250
     # ]
 
-    articles = Article.objects.annotate(i_c=Count('interacts')).order_by('-i_c', '-timestamp')[:250]
-
+    articles = Article.objects.annotate(i_c=Count("interacts")).order_by(
+        "-i_c", "-timestamp"
+    )[:250]
 
     response = render(
         request,
@@ -56,16 +57,18 @@ def home(request):
     return response
 
 
-@login_required(login_url='login')
+@login_required(login_url="login")
 def new_session(request):
-    articles = Article.objects.annotate(i_c=Count('interacts')).order_by('-i_c', '-timestamp')[:250]
+    articles = Article.objects.annotate(i_c=Count("interacts")).order_by(
+        "-i_c", "-timestamp"
+    )[:250]
 
     response = render(
         request,
         "main/home.html",
         {"articles": articles, "user": request.user},
     )
-    
+
     response.set_cookie(key="session_id", value=generate_session_id())
     return response
 
@@ -118,10 +121,16 @@ def article_action(request, article_id, action):
 
 @login_required(login_url="login")
 def my_articles(request):
-    interactions_df = UserInteract.objects.filter(personId=request.user).order_by('contentId')
+    interactions_df = UserInteract.objects.filter(personId=request.user).order_by(
+        "contentId"
+    )
     if interactions_df.count() < 5:
-        messages.add_message(request, messages.INFO, 'Вы новый пользователь, поэтому мы не можем составить для вас рекомендации')
-        return redirect('home')
+        messages.add_message(
+            request,
+            messages.INFO,
+            "Вы новый пользователь, поэтому мы не можем составить для вас рекомендации",
+        )
+        return redirect("home")
 
     file_path_articles = "shared_articles.csv"
     articles_df = pd.read_csv(file_path_articles)
@@ -143,8 +152,6 @@ def my_articles(request):
         }
     )
 
-    print(interactions_df.head(100))
-
     # Веса взаимодействий
     event_type_strength = {
         "VIEW": 1.0,
@@ -161,17 +168,22 @@ def my_articles(request):
     ).agg({"eventStrength": "sum"})
 
     print(interactions_df.head(100))
-  
+
     recommended_articles = get_recommendations(
-        request.user.id,
         interactions_df,
-        topn=10,
+        topn=100,
     )
-    
+
+    print(recommended_articles)
+
     article_ids = recommended_articles["contentId"].tolist()
     articles = Article.objects.filter(contentId__in=article_ids)
 
-    return render(request, "main/home.html", {"user": request.user, 'articles': articles, 'is_rec': True})
+    return render(
+        request,
+        "main/home.html",
+        {"user": request.user, "articles": articles, "is_rec": True},
+    )
 
 
 @login_required(login_url="login")
