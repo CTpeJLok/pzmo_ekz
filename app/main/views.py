@@ -11,7 +11,7 @@ from core.settings import BASE_DIR
 
 from .models import Article, UserInteract
 
-from .ml import get_recommendations
+from .ml import *
 
 EVENTS = {
     "v": "VIEW",
@@ -120,7 +120,7 @@ def article_action(request, article_id, action):
 
 
 @login_required(login_url="login")
-def my_articles(request):
+def my_articles_bert(request):
     interactions_df = UserInteract.objects.filter(personId=request.user).order_by(
         "contentId"
     )
@@ -169,14 +169,11 @@ def my_articles(request):
 
     print(interactions_df.head(100))
 
-    recommended_articles = get_recommendations(
-        interactions_df,
-        topn=100,
-    )
+    print("===== BERT РЕКОМЕНДАЦИИ =====")
+    rec_bert = get_recommendations_bert(request.user.id, interactions_df, topn=5)
+    print(rec_bert)
 
-    print(recommended_articles)
-
-    article_ids = recommended_articles["contentId"].tolist()
+    article_ids = rec_bert["contentId"].tolist()
     articles = Article.objects.filter(contentId__in=article_ids)
 
     return render(
@@ -186,7 +183,155 @@ def my_articles(request):
             "user": request.user,
             "articles": articles,
             "is_rec": True,
-            "maxR": round(recommended_articles.iloc[0]["similarity"], 3),
+            "maxR": round(rec_bert.iloc[0]["similarity"], 3),
+        },
+    )
+
+
+@login_required(login_url="login")
+def my_articles_tf_idf(request):
+    interactions_df = UserInteract.objects.filter(personId=request.user).order_by(
+        "contentId"
+    )
+    if interactions_df.count() < 5:
+        messages.add_message(
+            request,
+            messages.INFO,
+            "Вы новый пользователь, поэтому мы не можем составить для вас рекомендации",
+        )
+        return redirect("home")
+
+    file_path_articles = "shared_articles.csv"
+    articles_df = pd.read_csv(file_path_articles)
+    articles_df = articles_df[articles_df["eventType"] == "CONTENT SHARED"]
+    articles_df.drop(
+        columns=["authorUserAgent", "authorRegion", "authorCountry"], inplace=True
+    )
+
+    interactions_df = list(interactions_df.values())
+    interactions_df = pd.DataFrame(interactions_df)
+    interactions_df.drop(columns=["id"], inplace=True)
+    interactions_df["timestamp"] = (
+        pd.to_datetime(interactions_df["timestamp"]).astype(int) // 10**9
+    )
+    interactions_df = interactions_df.rename(
+        columns={
+            "contentId_id": "contentId",
+            "personId_id": "personId",
+        }
+    )
+
+    # Веса взаимодействий
+    event_type_strength = {
+        "VIEW": 1.0,
+        "LIKE": 2.0,
+        "BOOKMARK": 2.5,
+        "FOLLOW": 3.0,
+        "COMMENT CREATED": 4.0,
+    }
+    interactions_df["eventStrength"] = interactions_df["eventType"].apply(
+        lambda x: event_type_strength[x]
+    )
+    interactions_df = interactions_df.groupby(
+        ["personId", "contentId"], as_index=False
+    ).agg({"eventStrength": "sum"})
+
+    print(interactions_df.head(100))
+
+    print("\n===== TF-IDF РЕКОМЕНДАЦИИ =====")
+    user_profile_tfidf = build_user_profile_on_the_fly_tfidf(
+        interactions_df[["contentId", "eventStrength"]]
+    )
+
+    # 2) Показываем top-20 слов по TF-IDF:
+    tfidf_top_tokens_df = show_top_tokens_for_user_profile_tf(
+        user_profile_tfidf, tfidf_vectorizer, top_n=20
+    )
+    print("=== TOP WORDS (TF-IDF) ===")
+    print(tfidf_top_tokens_df)
+    rec_tfidf = get_recommendations_tfidf(request.user.id, interactions_df, topn=5)
+    print(rec_tfidf)
+
+    article_ids = rec_tfidf["contentId"].tolist()
+    articles = Article.objects.filter(contentId__in=article_ids)
+
+    return render(
+        request,
+        "main/home.html",
+        {
+            "user": request.user,
+            "articles": articles,
+            "is_rec": True,
+            "maxR": round(rec_tfidf.iloc[0]["similarity"], 3),
+        },
+    )
+
+
+@login_required(login_url="login")
+def my_articles_word2vec(request):
+    interactions_df = UserInteract.objects.filter(personId=request.user).order_by(
+        "contentId"
+    )
+    if interactions_df.count() < 5:
+        messages.add_message(
+            request,
+            messages.INFO,
+            "Вы новый пользователь, поэтому мы не можем составить для вас рекомендации",
+        )
+        return redirect("home")
+
+    file_path_articles = "shared_articles.csv"
+    articles_df = pd.read_csv(file_path_articles)
+    articles_df = articles_df[articles_df["eventType"] == "CONTENT SHARED"]
+    articles_df.drop(
+        columns=["authorUserAgent", "authorRegion", "authorCountry"], inplace=True
+    )
+
+    interactions_df = list(interactions_df.values())
+    interactions_df = pd.DataFrame(interactions_df)
+    interactions_df.drop(columns=["id"], inplace=True)
+    interactions_df["timestamp"] = (
+        pd.to_datetime(interactions_df["timestamp"]).astype(int) // 10**9
+    )
+    interactions_df = interactions_df.rename(
+        columns={
+            "contentId_id": "contentId",
+            "personId_id": "personId",
+        }
+    )
+
+    # Веса взаимодействий
+    event_type_strength = {
+        "VIEW": 1.0,
+        "LIKE": 2.0,
+        "BOOKMARK": 2.5,
+        "FOLLOW": 3.0,
+        "COMMENT CREATED": 4.0,
+    }
+    interactions_df["eventStrength"] = interactions_df["eventType"].apply(
+        lambda x: event_type_strength[x]
+    )
+    interactions_df = interactions_df.groupby(
+        ["personId", "contentId"], as_index=False
+    ).agg({"eventStrength": "sum"})
+
+    print(interactions_df.head(100))
+
+    print("\n===== WORD2VEC РЕКОМЕНДАЦИИ =====")
+    rec_w2v = get_recommendations_word2vec(request.user.id, interactions_df, topn=5)
+    print(rec_w2v)
+
+    article_ids = rec_w2v["contentId"].tolist()
+    articles = Article.objects.filter(contentId__in=article_ids)
+
+    return render(
+        request,
+        "main/home.html",
+        {
+            "user": request.user,
+            "articles": articles,
+            "is_rec": True,
+            "maxR": round(rec_w2v.iloc[0]["similarity"], 3),
         },
     )
 

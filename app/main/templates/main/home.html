@@ -13,7 +13,9 @@
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item"><a class="nav-link" href="{% url 'home' %}">Популярные статьи</a></li>
-                <li class="nav-item"><a class="nav-link" href="{% url 'my_articles' %}">Статьи для вас</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'my_articles_bert' %}">Статьи для вас (BERT)</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'my_articles_tf_idf' %}">Статьи для вас (TF-IDF)</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'my_articles_word2vec' %}">Статьи для вас (WORD2VEC)</a></li>
                 <li class="nav-item"><a class="nav-link" href="{% url 'new_session' %}">Начать новую сессию</a></li>
             </ul>
             <span class="navbar-text">Привет, {{ user.username }}!</span>
