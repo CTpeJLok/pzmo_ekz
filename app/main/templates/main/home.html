@@ -36,6 +36,24 @@
         {% else %}
         <h2 class="mb-3">Статьи</h2>
         {% endif %}
+
+        {% if top_words %}
+            <table class="table">
+                <thead>
+                    <td>Слово</td>
+                    <td>Релевантность</td>
+                </thead>
+                <tbody>
+                    {% for i in top_words %}
+                        <tr>
+                            <td>{{ i.0 }}</td>
+                            <td>{{ i.1 }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
         {% for article in articles %}
         <div class="card mb-3">
             <div class="card-body">
